@@ -42,6 +42,10 @@ newstyle_i18n_templates = {
     "{{ num }} apples{% endtrans %}",
     "pgettext.html": '{{ pgettext("company", "Apple") }}',
     "pgettext_long.html": '{% trans context "company" %}Apple{% endtrans %}',
+    "npgettext.html": '{{ npgettext("company", "%(num)s apple", "%(num)s apples",'
+    " apples) }}",
+    "npgettext_long.html": "{% trans num=apples context 'company' %}{{ num }} "
+    "apple{% pluralize %}{{ num }} apples{% endtrans %}",
     "transvars1.html": "{% trans %}User: {{ num }}{% endtrans %}",
     "transvars2.html": "{% trans num=count %}User: {{ num }}{% endtrans %}",
     "transvars3.html": "{% trans count=num %}User: {{ count }}{% endtrans %}",
@@ -60,8 +64,8 @@ languages = {
         "User: %(num)s": "Benutzer: %(num)s",
         "User: %(count)s": "Benutzer: %(count)s",
         "Apple": {None: "Apfel", "company": "Apple"},
-        "%(num)s apple": "%(num)s Apfel",
-        "%(num)s apples": "%(num)s Äpfel",
+        "%(num)s apple": {None: "%(num)s Apfel", "company": "%(num)s Apple"},
+        "%(num)s apples": {None: "%(num)s Äpfel", "company": "%(num)s Apples"},
     }
 }
 
@@ -83,7 +87,8 @@ def gettext(context, string):
 def ngettext(context, s, p, n):
     language = context.get("LANGUAGE", "en")
     if n != 1:
-        return languages.get(language, {}).get(p, p)
+        value = languages.get(language, {}).get(p, p)
+        return _get_with_context(value)
     value = languages.get(language, {}).get(s, s)
     return _get_with_context(value)
 
@@ -99,7 +104,8 @@ def pgettext(context, c, s):
 def npgettext(context, c, s, p, n):
     language = context.get("LANGUAGE", "en")
     if n != 1:
-        return languages.get(language, {}).get(p, p)
+        value = languages.get(language, {}).get(p, p)
+        return _get_with_context(value, c)
     value = languages.get(language, {}).get(s, s)
     return _get_with_context(value, c)
 
@@ -574,9 +580,21 @@ class TestNewstyleInternationalization:
         tmpl = newstyle_i18n_env.get_template("pgettext.html")
         assert tmpl.render(LANGUAGE="de") == "Apple"
 
+    @pytest.mark.skip("long syntax not supported yet")
     def test_context_long_syntax(self):
         tmpl = newstyle_i18n_env.get_template("pgettext_long.html")
         assert tmpl.render(LANGUAGE="de") == "Apple"
+
+    def test_context_newstyle_plural(self):
+        tmpl = newstyle_i18n_env.get_template("npgettext.html")
+        assert tmpl.render(LANGUAGE="de", apples=1) == "1 Apple"
+        assert tmpl.render(LANGUAGE="de", apples=5) == "5 Apples"
+
+    @pytest.mark.skip("long syntat not supported yet")
+    def test_context_newstyle_plural_long_syntax(self):
+        tmpl = newstyle_i18n_env.get_template("npgettext_long.html")
+        assert tmpl.render(LANGUAGE="de", apples=1) == "1 Apple"
+        assert tmpl.render(LANGUAGE="de", apples=5) == "5 Apples"
 
 
 class TestAutoEscape:

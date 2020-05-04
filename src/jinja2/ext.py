@@ -225,7 +225,6 @@ class InternationalizationExtension(Extension):
         ngettext = getattr(translations, "ungettext", None)
         if ngettext is None:
             ngettext = translations.ngettext
-        self._install_callables(gettext, ngettext, newstyle)
 
         pgettext = translations.pgettext
         npgettext = translations.npgettext
@@ -235,7 +234,11 @@ class InternationalizationExtension(Extension):
 
     def _install_null(self, newstyle=None):
         self._install_callables(
-            lambda x: x, lambda s, p, n: s if n == 1 else p, newstyle
+            lambda s: s,
+            lambda s, p, n: s if n == 1 else p,
+            newstyle=newstyle,
+            pgettext=lambda c, s: s,
+            npgettext=lambda c, s, p, n: s if n == 1 else p,
         )
 
     def _install_callables(
