@@ -5,6 +5,7 @@ from sys import version_info
 
 from markupsafe import Markup
 
+from . import lexer
 from . import nodes
 from .defaults import BLOCK_END_STRING
 from .defaults import BLOCK_START_STRING
@@ -278,6 +279,7 @@ class InternationalizationExtension(Extension):
         plural_expr_assignment = None
         variables = {}
         trimmed = None
+        context = None
         while parser.stream.current.type != "block_end":
             if variables:
                 parser.stream.expect("comma")
@@ -300,6 +302,10 @@ class InternationalizationExtension(Extension):
                 variables[name.value] = var = parser.parse_expression()
             elif trimmed is None and name.value in ("trimmed", "notrimmed"):
                 trimmed = name.value == "trimmed"
+                continue
+            elif context is None and name.value == "context":
+                context = parser.stream.expect(lexer.TOKEN_STRING)
+                context = context.value
                 continue
             else:
                 variables[name.value] = var = nodes.Name(name.value, "load")
@@ -374,6 +380,7 @@ class InternationalizationExtension(Extension):
             plural_expr,
             bool(referenced),
             num_called_num and have_plural,
+            context,
         )
         node.set_lineno(lineno)
         if plural_expr_assignment is not None:
@@ -419,7 +426,14 @@ class InternationalizationExtension(Extension):
         return referenced, concat(buf)
 
     def _make_node(
-        self, singular, plural, variables, plural_expr, vars_referenced, num_called_num
+        self,
+        singular,
+        plural,
+        variables,
+        plural_expr,
+        vars_referenced,
+        num_called_num,
+        context,
     ):
         """Generates a useful node from the data provided."""
         # no variables referenced?  no need to escape for old style
@@ -431,19 +445,44 @@ class InternationalizationExtension(Extension):
 
         # singular only:
         if plural_expr is None:
-            gettext = nodes.Name("gettext", "load")
-            node = nodes.Call(gettext, [nodes.Const(singular)], [], None, None)
+            if context is None:
+                gettext = nodes.Name("gettext", "load")
+                node = nodes.Call(gettext, [nodes.Const(singular)], [], None, None)
+            else:
+                pgettext = nodes.Name("pgettext", "load")
+                node = nodes.Call(
+                    pgettext,
+                    [nodes.Const(context), nodes.Const(singular)],
+                    [],
+                    None,
+                    None,
+                )
 
         # singular and plural
         else:
-            ngettext = nodes.Name("ngettext", "load")
-            node = nodes.Call(
-                ngettext,
-                [nodes.Const(singular), nodes.Const(plural), plural_expr],
-                [],
-                None,
-                None,
-            )
+            if context is None:
+                ngettext = nodes.Name("ngettext", "load")
+                node = nodes.Call(
+                    ngettext,
+                    [nodes.Const(singular), nodes.Const(plural), plural_expr],
+                    [],
+                    None,
+                    None,
+                )
+            else:
+                npgettext = nodes.Name("npgettext", "load")
+                node = nodes.Call(
+                    npgettext,
+                    [
+                        nodes.Const(context),
+                        nodes.Const(singular),
+                        nodes.Const(plural),
+                        plural_expr,
+                    ],
+                    [],
+                    None,
+                    None,
+                )
 
         # in case newstyle gettext is used, the method is powerful
         # enough to handle the variable expansion and autoescape

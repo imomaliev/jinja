@@ -44,7 +44,7 @@ newstyle_i18n_templates = {
     "pgettext_long.html": '{% trans context "company" %}Apple{% endtrans %}',
     "npgettext.html": '{{ npgettext("company", "%(num)s apple", "%(num)s apples",'
     " apples) }}",
-    "npgettext_long.html": "{% trans num=apples context 'company' %}{{ num }} "
+    "npgettext_long.html": "{% trans context 'company' num=apples %}{{ num }} "
     "apple{% pluralize %}{{ num }} apples{% endtrans %}",
     "transvars1.html": "{% trans %}User: {{ num }}{% endtrans %}",
     "transvars2.html": "{% trans num=count %}User: {{ num }}{% endtrans %}",
@@ -64,6 +64,10 @@ languages = {
         "User: %(num)s": "Benutzer: %(num)s",
         "User: %(count)s": "Benutzer: %(count)s",
         "Apple": {None: "Apfel", "company": "Apple"},
+        "Apple\n %(context)s": {
+            None: "Apfel\n %(context)s",
+            "company": "Apple\n %(context)s",
+        },
         "%(num)s apple": {None: "%(num)s Apfel", "company": "%(num)s Apple"},
         "%(num)s apples": {None: "%(num)s Äpfel", "company": "%(num)s Apples"},
     }
@@ -521,8 +525,6 @@ class TestNewstyleInternationalization:
             lambda x: "<strong>Wert: %(name)s</strong>",
             lambda s, p, n: s,
             newstyle=True,
-            pgettext=lambda c, s: s,
-            npgettext=lambda c, s, p, n: s,
         )
         t = env.from_string(
             '{% autoescape ae %}{{ gettext("foo", name='
@@ -580,17 +582,23 @@ class TestNewstyleInternationalization:
         tmpl = newstyle_i18n_env.get_template("pgettext.html")
         assert tmpl.render(LANGUAGE="de") == "Apple"
 
-    @pytest.mark.skip("long syntax not supported yet")
     def test_context_long_syntax(self):
         tmpl = newstyle_i18n_env.get_template("pgettext_long.html")
         assert tmpl.render(LANGUAGE="de") == "Apple"
+
+    def test_context_varname(self):
+        # unlikely variable name, but when used as a variable
+        # it should not enable pgettext
+        tmpl = i18n_env.from_string(
+            "{%- trans context='company' %}Apple\n {{ context }}{% endtrans -%}"
+        )
+        assert tmpl.render(LANGUAGE="de") == "Apfel\n company"
 
     def test_context_newstyle_plural(self):
         tmpl = newstyle_i18n_env.get_template("npgettext.html")
         assert tmpl.render(LANGUAGE="de", apples=1) == "1 Apple"
         assert tmpl.render(LANGUAGE="de", apples=5) == "5 Apples"
 
-    @pytest.mark.skip("long syntat not supported yet")
     def test_context_newstyle_plural_long_syntax(self):
         tmpl = newstyle_i18n_env.get_template("npgettext_long.html")
         assert tmpl.render(LANGUAGE="de", apples=1) == "1 Apple"
