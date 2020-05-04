@@ -28,7 +28,7 @@ from .utils import import_string
 
 # I18N functions available in Jinja templates. If the I18N library
 # provides ugettext, it will be assigned to gettext.
-GETTEXT_FUNCTIONS = ("_", "gettext", "ngettext", "pgettext")
+GETTEXT_FUNCTIONS = ("_", "gettext", "ngettext", "pgettext", "npgettext")
 _ws_re = re.compile(r"\s*\n\s*")
 
 
@@ -178,6 +178,20 @@ def _make_new_pgettext(func):
     return pgettext
 
 
+def _make_new_npgettext(func):
+    @contextfunction
+    def npgettext(__context, __string_ctx, __singular, __plural, __num, **variables):
+        variables.setdefault("context", __string_ctx)
+        variables.setdefault("num", __num)
+        rv = __context.call(func, __string_ctx, __singular, __plural, __num)
+        if __context.eval_ctx.autoescape:
+            rv = Markup(rv)
+        # Always treat as a format string, see gettext comment above.
+        return rv % variables
+
+    return npgettext
+
+
 class InternationalizationExtension(Extension):
     """This extension adds gettext support to Jinja."""
 
@@ -212,29 +226,36 @@ class InternationalizationExtension(Extension):
         if ngettext is None:
             ngettext = translations.ngettext
         self._install_callables(gettext, ngettext, newstyle)
-        pgettext = getattr(translations, "upgettext", None)
-        if pgettext is None:
-            pgettext = translations.pgettext
-        self._install_callables(gettext, ngettext, pgettext, newstyle)
+
+        pgettext = translations.pgettext
+        npgettext = translations.npgettext
+        self._install_callables(
+            gettext, ngettext, newstyle=newstyle, pgettext=pgettext, npgettext=npgettext
+        )
 
     def _install_null(self, newstyle=None):
         self._install_callables(
             lambda x: x, lambda s, p, n: s if n == 1 else p, newstyle
         )
 
-    def _install_callables(self, gettext, ngettext, pgettext, newstyle=None):
+    def _install_callables(
+        self, gettext, ngettext, newstyle=None, pgettext=None, npgettext=None
+    ):
         if newstyle is not None:
             self.environment.newstyle_gettext = newstyle
         if self.environment.newstyle_gettext:
             gettext = _make_new_gettext(gettext)
             ngettext = _make_new_ngettext(ngettext)
-            pgettext = _make_new_pgettext(pgettext)
+            if pgettext is not None:
+                pgettext = _make_new_pgettext(pgettext)
+            if npgettext is not None:
+                npgettext = _make_new_npgettext(npgettext)
         self.environment.globals.update(
-            gettext=gettext, ngettext=ngettext, pgettext=pgettext
+            gettext=gettext, ngettext=ngettext, pgettext=pgettext, npgettext=npgettext
         )
 
     def _uninstall(self, translations):
-        for key in ("gettext", "ngettext", "pgettext"):
+        for key in ("gettext", "ngettext", "pgettext", "npgettext"):
             self.environment.globals.pop(key, None)
 
     def _extract(self, source, gettext_functions=GETTEXT_FUNCTIONS):

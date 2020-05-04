@@ -40,7 +40,7 @@ newstyle_i18n_templates = {
     "ngettext.html": '{{ ngettext("%(num)s apple", "%(num)s apples", apples) }}',
     "ngettext_long.html": "{% trans num=apples %}{{ num }} apple{% pluralize %}"
     "{{ num }} apples{% endtrans %}",
-    "pgettext.html": '{{ pgettext("Apple", "company") }}',
+    "pgettext.html": '{{ pgettext("company", "Apple") }}',
     "pgettext_long.html": '{% trans context "company" %}Apple{% endtrans %}',
     "transvars1.html": "{% trans %}User: {{ num }}{% endtrans %}",
     "transvars2.html": "{% trans num=count %}User: {{ num }}{% endtrans %}",
@@ -59,7 +59,7 @@ languages = {
         "%(user_count)s users online": "%(user_count)s Benutzer online",
         "User: %(num)s": "Benutzer: %(num)s",
         "User: %(count)s": "Benutzer: %(count)s",
-        "Apple": {None: u"Apfel", "company": "Apple"},
+        "Apple": {None: "Apfel", "company": "Apple"},
         "%(num)s apple": "%(num)s Apfel",
         "%(num)s apples": "%(num)s Äpfel",
     }
@@ -84,7 +84,7 @@ def ngettext(context, s, p, n):
     language = context.get("LANGUAGE", "en")
     if n != 1:
         return languages.get(language, {}).get(p, p)
-    value = languages.get(language,).get(s, s)
+    value = languages.get(language, {}).get(s, s)
     return _get_with_context(value)
 
 
@@ -95,23 +95,46 @@ def pgettext(context, c, s):
     return _get_with_context(value, c)
 
 
+@contextfunction
+def npgettext(context, c, s, p, n):
+    language = context.get("LANGUAGE", "en")
+    if n != 1:
+        return languages.get(language, {}).get(p, p)
+    value = languages.get(language, {}).get(s, s)
+    return _get_with_context(value, c)
+
+
 i18n_env = Environment(
     loader=DictLoader(i18n_templates), extensions=["jinja2.ext.i18n"]
 )
 i18n_env.globals.update(
-    {"_": gettext, "gettext": gettext, "ngettext": ngettext, "pgettext": pgettext}
+    {
+        "_": gettext,
+        "gettext": gettext,
+        "ngettext": ngettext,
+        "pgettext": pgettext,
+        "npgettext": npgettext,
+    }
 )
 i18n_env_trimmed = Environment(extensions=["jinja2.ext.i18n"])
 
 i18n_env_trimmed.policies["ext.i18n.trimmed"] = True
 i18n_env_trimmed.globals.update(
-    {"_": gettext, "gettext": gettext, "ngettext": ngettext, "pgettext": pgettext}
+    {
+        "_": gettext,
+        "gettext": gettext,
+        "ngettext": ngettext,
+        "pgettext": pgettext,
+        "npgettext": npgettext,
+    }
 )
 
 newstyle_i18n_env = Environment(
     loader=DictLoader(newstyle_i18n_templates), extensions=["jinja2.ext.i18n"]
 )
-newstyle_i18n_env.install_gettext_callables(gettext, ngettext, pgettext, newstyle=True)
+newstyle_i18n_env.install_gettext_callables(
+    gettext, ngettext, newstyle=True, pgettext=pgettext, npgettext=npgettext
+)
 
 
 class ExampleExtension(Extension):
@@ -491,8 +514,9 @@ class TestNewstyleInternationalization:
         env.install_gettext_callables(
             lambda x: "<strong>Wert: %(name)s</strong>",
             lambda s, p, n: s,
-            lambda s, c: s,
             newstyle=True,
+            pgettext=lambda c, s: s,
+            npgettext=lambda c, s, p, n: s,
         )
         t = env.from_string(
             '{% autoescape ae %}{{ gettext("foo", name='
@@ -552,7 +576,7 @@ class TestNewstyleInternationalization:
 
     def test_context_long_syntax(self):
         tmpl = newstyle_i18n_env.get_template("pgettext_long.html")
-        assert tmpl.render(LANGUAGE="de") == u"Apple"
+        assert tmpl.render(LANGUAGE="de") == "Apple"
 
 
 class TestAutoEscape:
