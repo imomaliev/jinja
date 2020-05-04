@@ -399,6 +399,20 @@ class TestInternationalization:
             (4, "ngettext", ("%(users)s user", "%(users)s users", None), []),
         ]
 
+    def test_extract_context(self):
+        from jinja2.ext import babel_extract
+
+        source = BytesIO(
+            b"""
+            {% trans context "babel" %}Hello World{% endtrans %}
+            {% trans context "babel" %}{{ users }} user{% pluralize %}{{ users }} """
+            b"users{% endtrans %}"
+        )
+        assert list(babel_extract(source, ("pgettext", "npgettext", "_"), [], {})) == [
+            (2, "pgettext", ("babel", "Hello World"), []),
+            (3, "npgettext", ("babel", "%(users)s user", "%(users)s users", None), []),
+        ]
+
     def test_extract_trimmed(self):
         from jinja2.ext import babel_extract
 
